@@ -62,10 +62,29 @@
 
 <script src="./d3.v4.min.js"></script>
 
+<!-- The core Firebase JS SDK is always required and must be listed first -->
+<script src="https://www.gstatic.com/firebasejs/7.7.0/firebase-app.js"></script>
+
+<script src="https://www.gstatic.com/firebasejs/7.7.0/firebase-firestore.js"></script>
+<!-- TODO: Add SDKs for Firebase products that you want to use
+     https://firebase.google.com/docs/web/setup#available-libraries -->
 
 <script>
+    // Your web app's Firebase configuration
+    var firebaseConfig = {
+        apiKey: "AIzaSyD5oDrXfleV1ht410VIM742N-epcA7BzLE",
+        authDomain: "crypto-etl-ethereum-dev.firebaseapp.com",
+        databaseURL: "https://crypto-etl-ethereum-dev.firebaseio.com",
+        projectId: "crypto-etl-ethereum-dev",
+        storageBucket: "crypto-etl-ethereum-dev.appspot.com",
+        messagingSenderId: "869804627112",
+        appId: "1:869804627112:web:49ab7d0d30c45dee"
+    };
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+</script>
 
-
+<script>
 
     class bitcoinTree {
 
@@ -87,7 +106,7 @@
             this.nextaddr = false;
 
             this.nodeIndex = 1000, // initial node index
-                this.duration = 1000;
+            this.duration = 1000;
             this.iteration = 0;
             this.maxIterations = 20;
             this.addresses = {};
@@ -113,22 +132,10 @@
             this.svgWidthInit = this.width + this.margin.right + this.margin.left;
             this.svgHeightInit = this.height + this.margin.top + this.margin.bottom;
 
-            /*
-                     function zoomer() {
-                        that.base.attr("transform", "translate(" + d3.event.translate + ")scale(" + d3.event.scale + ")");
-                     }
-
-                     var zoom = d3.behavior.zoom()
-                              .translate( [this.width/2,this.height/2 ] )
-                              .scaleExtent([0.5, 4])
-                              .on("zoom", zoomer);
-            */
             this.svg = d3.select("body")
                 .append("svg")
                 .attr("width", this.svgWidthInit)
-                .attr("height", this.svgHeightInit)
-            // .attr('viewBox',`0 0 ${this.width} ${this.height}`)
-            // .call(zoom )
+                .attr("height", this.svgHeightInit);
 
             this.base = this.svg
                 .append("g")
@@ -190,20 +197,28 @@
             let links = [],
                 src = data[0] === undefined ? [data] : data;
             for(var d of data) {
-                if(this.links.some(dd => dd.id == d.From + '_' + d.To)) continue;
+                let source = d.from_address;
+                let target = d.to_address;
+                let link_label = source + '_' + target;
+
+                if(this.links.some(dd => dd.link_label == link_label)) {
+                    console.log('Same link label ' + link_label);
+                };
+
                 let link = {
-                    id: d.From + '_' + d.To,
-                    source : d.From,
-                    target: d.To,
-                    name: d.Blockno,
-                    inAmount: d['Value_IN(ETH)'],
-                    outAmount: d['Value_OUT(ETH)'],
-                    size: Math.abs( d['Value_OUT(ETH)'] - d['Value_IN(ETH)']),
-                    color: d['Value_OUT(ETH)'] > d['Value_IN(ETH)'] ? 'green' : 'red',
+                    id: d.hash,
+                    source : source,
+                    target: target,
+                    link_label: link_label,
+                    name: 'd.Blockno',
+                    inAmount: d.value,
+                    outAmount: d.value,
+                    size: d.value,
+                    color: 'green',
                     title : 'In: ' + d['Value_IN(ETH)'] + ', Out: ' + d['Value_OUT(ETH)'],
                     value: 3
 
-                }
+                };
                 links.push(link)
             }
             return links;
@@ -247,21 +262,22 @@
         }
 
 
-        updateGraph() {
-
-            let tx, newlinks = [],newnodes = [];
-            if(tx = this.data[this.currentDataIndex++]) {
+        updateGraph(tx) {
+            if (typeof tx != 'object') {
+                tx = this.data[this.currentDataIndex++]
+            }
+            if(tx) {
                 this.links = this.links.concat (this.convLinksData([tx]));
             }else{
                 this.interval.stop();
                 console.log(this.iteration + ' iterations done...')
             }
-            newnodes = this.linksToNodes(this.links);
+            let newnodes = this.linksToNodes(this.links);
             this.nodes = this.nodes.concat(newnodes);
 
             this.draw();
 
-            if(++this.iteration >= this.maxIterations) {
+            if(++this.iteration >= this.maxIterations && this.interval) {
                 this.interval.stop();
                 console.log(this.iteration + ' iterations done...')
             }
@@ -393,6 +409,10 @@
                 .style('marker-end', 'url(#end-arrow)')
                 .merge(this.link)
                 .attr("stroke-width", d => 2 * d.value)
+                .each(function(d) {
+                    var el = d3.select(this);
+                    el.append('text').text(d.link_label);
+                })
 
             this.sim
                 .alpha(0.3)
@@ -419,6 +439,23 @@
         var addr = d3.select("#input_data").property('value');
         tree.init(addr);
     })
+
+    var db = firebase.firestore();
+
+    var currentDate = new Date();
+    var aMinuteAgo = new Date(currentDate - 60000);
+    var startDate = aMinuteAgo.toISOString().replace('T', ' ');
+    console.log(startDate);
+
+    db.collection("transactions2").where("_publish_timestamp", ">=", startDate)
+        .onSnapshot(snapshot => {
+            snapshot.docChanges().forEach(function(change) {
+                if (change.type === "added") {
+                    console.log("New doc: ", change.doc.data());
+                }
+                tree.updateGraph(change.doc.data());
+            });
+        });
 
 
 </script>
