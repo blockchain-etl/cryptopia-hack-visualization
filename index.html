@@ -192,38 +192,39 @@
 
         }
 
-        convLinksData(data) {
-
-            let links = [],
-                src = data[0] === undefined ? [data] : data;
-            for(var d of data) {
-                let source = d.from_address;
-                let target = d.to_address;
-                let link_label = source + '_' + target;
-
-                if(this.links.some(dd => dd.link_label == link_label)) {
-                    console.log('Same link label ' + link_label);
-                };
-
-                let link = {
-                    id: d.hash,
-                    source : source,
-                    target: target,
-                    link_label: link_label,
-                    name: 'd.Blockno',
-                    inAmount: d.value,
-                    outAmount: d.value,
-                    size: d.value,
-                    color: 'green',
-                    title : 'In: ' + d['Value_IN(ETH)'] + ', Out: ' + d['Value_OUT(ETH)'],
-                    value: 3
-
-                };
-                links.push(link)
+        updateGraph(tx) {
+            let newLink = this.convLinksData(tx);
+            if(this.links.some(dd => dd.id == newLink.id)) {
+                // skip
+            } else {
+                this.links.push(newLink);
             }
-            return links;
+
+            let newnodes = this.linksToNodes(this.links);
+            this.nodes = this.nodes.concat(newnodes);
+
+            this.draw();
         }
 
+        convLinksData(d) {
+            let source = d.from_address;
+            let target = d.to_address;
+            let link_id = source + '_' + target;
+
+            let link = {
+                id: link_id,
+                source : source,
+                target: target,
+                name: 'd.Blockno',
+                amount: d.value,
+                size: d.value,
+                color: 'green',
+                title : 'In: ' + d['Value_IN(ETH)'] + ', Out: ' + d['Value_OUT(ETH)'],
+                value: 3
+            };
+
+            return link;
+        }
 
         linksToNodes(links) {
             var nodes = [], node;
@@ -232,22 +233,20 @@
                     target = d.target.id || d.target;
 
                 if(this.nodesHash[source]) {
-                    this.nodesHash[source].value += d.inAmount;
+                    this.nodesHash[source].value += d.amount;
                 }else{
-                    node = { id: source, name: source, value: d.inAmount, size: 10 };
-                    //node = { id: this.nodeIndex++, name: d.source, value: d.inAmount, size: 10 };
+                    node = { id: source, name: source, value: d.amount, size: 10 };
                     nodes.push(node);
                     this.nodesHash[source] = node;
                 }
                 if(this.nodesHash[target]) {
-                    this.nodesHash[target].value += d.outAmount;
+                    this.nodesHash[target].value += d.amount;
                 }else{
-                    node = { id: target, name: target, value: d.outAmount, size: 10 };
-                    //node = { id: this.nodeIndex++, name: d.target, value: d.outAmount, size: 10 };
+                    node = { id: target, name: target, value: d.amount, size: 10 };
                     nodes.push(node);
                     this.nodesHash[target] = node;
                 }
-            })
+            });
             return nodes;
         }
 
@@ -261,30 +260,7 @@
             })
         }
 
-
-        updateGraph(tx) {
-            if (typeof tx != 'object') {
-                tx = this.data[this.currentDataIndex++]
-            }
-            if(tx) {
-                this.links = this.links.concat (this.convLinksData([tx]));
-            }else{
-                this.interval.stop();
-                console.log(this.iteration + ' iterations done...')
-            }
-            let newnodes = this.linksToNodes(this.links);
-            this.nodes = this.nodes.concat(newnodes);
-
-            this.draw();
-
-            if(++this.iteration >= this.maxIterations && this.interval) {
-                this.interval.stop();
-                console.log(this.iteration + ' iterations done...')
-            }
-        }
-
         ticked() {
-
             this.link.attr('d', d => {
 
                 var deltaX, deltaY,
@@ -322,16 +298,11 @@
             this.node.attr("transform", d => "translate(" + [d.x,d.y] + ")");
         }
 
-
-
         draw() {
-
-
             let that = this;
 
-            //   console.log(this.links);
+            // console.log(this.links);
             // console.log(this.nodes);
-
 
             function dragstarted(d) {
                 if (!d3.event.active) that.sim.alphaTarget(0.01).restart();
@@ -350,9 +321,7 @@
                 d.fy = d.y; // null
             }
 
-
             if(!this.sim) this.initSim();
-
 
             this.node = this.base.selectAll('.node').data(this.nodes);
 
@@ -360,11 +329,6 @@
             this.node = this.node.enter()
                 .append('g')
                 .classed('node', true)
-                .on('click', function(d) {
-                    that.nextaddr = d.id;
-                    that.updateGraph();
-                })
-
                 .each(function(d) {
                     var el = d3.select(this);
 
@@ -394,9 +358,7 @@
                     el.select('text').transition().duration(300).attr("y",d.r  + 2);
                     el.select('title').text('id: ' + d.id);
 
-                })
-
-
+                });
 
             // Apply the general update pattern to the links.
             this.link = this.base.selectAll('.link').data(this.links, d => d.id);
@@ -412,7 +374,7 @@
                 .each(function(d) {
                     var el = d3.select(this);
                     el.append('text').text(d.link_label);
-                })
+                });
 
             this.sim
                 .alpha(0.3)
@@ -428,9 +390,6 @@
             this.sim.restart()
 
         }
-
-
-
     }
 
     const tree = new bitcoinTree();
@@ -442,21 +401,15 @@
 
     var db = firebase.firestore();
 
-    var currentDate = new Date();
-    var aMinuteAgo = new Date(currentDate - 60000);
-    var startDate = aMinuteAgo.toISOString().replace('T', ' ');
-    console.log(startDate);
-
-    db.collection("transactions2").where("_publish_timestamp", ">=", startDate)
+    db.collection("transactions4").orderBy("_publish_timestamp")
         .onSnapshot(snapshot => {
             snapshot.docChanges().forEach(function(change) {
                 if (change.type === "added") {
                     console.log("New doc: ", change.doc.data());
+                    setTimeout(function() {tree.updateGraph(change.doc.data());}, 0)
                 }
-                tree.updateGraph(change.doc.data());
             });
         });
-
 
 </script>
 </body>
