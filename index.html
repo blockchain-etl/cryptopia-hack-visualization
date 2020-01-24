@@ -126,8 +126,8 @@
             var w = window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
             var h = window.innerHeight|| document.documentElement.clientHeight|| document.body.clientHeight;
 
-            this.width = w - this.margin.left - this.margin.right,
-                this.height = h - this.margin.top - this.margin.bottom;
+            this.width = w - this.margin.left - this.margin.right;
+            this.height = h - this.margin.top - this.margin.bottom;
 
             this.svgWidthInit = this.width + this.margin.right + this.margin.left;
             this.svgHeightInit = this.height + this.margin.top + this.margin.bottom;
@@ -178,15 +178,16 @@
 
 
         initSim() {
+            let that = this;
             this.sim = d3.forceSimulation()
                 .force("link",
                     d3.forceLink().id(d => d.id)
                 )
-                // .force("charge", d3.forceManyBody().strength(-140).distanceMax(80).distanceMin(10))
+                .force("charge", d3.forceManyBody().strength(-300).distanceMin(10))
                 .force("center", d3.forceCenter(0, 0))
-                .force("collide",d3.forceCollide( d => d.r +20).strength(0.9).iterations(1))
-                .force("y", d3.forceY().y( 0 ).strength(0.1))
-                .force("x", d3.forceX().x( 0 ).strength(0.1))
+                .force("collide", d3.forceCollide( d => d.r +20).strength(0.1).iterations(100))
+                .force("y", d3.forceY().y( that.height/2 ).strength(0.04))
+                .force("x", d3.forceX().x( that.width/2 ).strength(0.04))
                 .velocityDecay(0.3)
 
 
@@ -233,9 +234,9 @@
                     target = d.target.id || d.target;
 
                 if(this.nodesHash[source]) {
-                    this.nodesHash[source].value += d.amount;
+                    this.nodesHash[source].value -= d.amount;
                 }else{
-                    node = { id: source, name: source, value: d.amount, size: 10 };
+                    node = { id: source, name: source, value: -d.amount, size: 10 };
                     nodes.push(node);
                     this.nodesHash[source] = node;
                 }
@@ -305,7 +306,7 @@
             // console.log(this.nodes);
 
             function dragstarted(d) {
-                if (!d3.event.active) that.sim.alphaTarget(0.01).restart();
+                if (!d3.event.active) that.sim.alphaTarget(0.1).alpha(1).restart();
                 d.fx = d.x;
                 d.fy = d.y;
             }
@@ -316,7 +317,7 @@
             }
 
             function dragended(d) {
-                if (!d3.event.active) that.sim.alphaTarget(0);
+                if (!d3.event.active) that.sim.alphaTarget(0.1);
                 d.fx = d.x; // null
                 d.fy = d.y; // null
             }
@@ -352,10 +353,10 @@
                     var el = d3.select(this);
 
                     d.r = d.size;
-                    el.select('.r1').transition().duration(300).attr("r", d.r1 || 10);
-                    el.select('.r2').transition().duration(300).attr("r", d.r2 || 5);
-                    el.select('text').transition().duration(300).attr("x",d.r  + 2);
-                    el.select('text').transition().duration(300).attr("y",d.r  + 2);
+                    el.select('.r1').transition().duration(300).attr("r", d.r1 || 15);
+                    el.select('.r2').transition().duration(300).attr("r", d.r2 || 1);
+                    el.select('text').transition().duration(300).attr("x",d.r  + 5);
+                    el.select('text').transition().duration(300).attr("y",d.r  + 5);
                     el.select('title').text('id: ' + d.id);
 
                 });
